@@ -98,7 +98,7 @@ test("main, attention, subagent, and background activity use union precedence", 
 
   await harness.extension.onSessionShutdown({ reason: "quit" }, harness.context);
   await assert.rejects(access(path));
-  assert.equal(harness.events.unsubscribed, 6);
+  assert.equal(harness.events.unsubscribed, 9);
   assert.ok(harness.scheduler.timers.every((timer) => timer.cleared));
 });
 

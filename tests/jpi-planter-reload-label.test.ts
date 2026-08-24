@@ -48,7 +48,7 @@ test("atomic writes adopt live tabs, reload preserves ordering, and final shutdo
   await replaceRecord(path, { tab: 7 });
   await harness.extension.onSessionShutdown({ reason: "reload" }, harness.context);
   await access(path);
-  assert.equal(harness.events.unsubscribed, 6);
+  assert.equal(harness.events.unsubscribed, 9);
   assert.ok(harness.scheduler.timers.every((timer) => timer.cleared));
 
   harness.setNow(200);

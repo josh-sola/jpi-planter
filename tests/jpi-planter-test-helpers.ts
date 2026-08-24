@@ -76,6 +76,35 @@ export function backgroundResponse(
   };
 }
 
+export function jpiBackgroundRequests(events: PlanterEventBus) {
+  return events.emitted
+    .filter(({ channel }) => channel === "jpi-background:request:v1")
+    .map(({ data }) => data as { request_id: string; [key: string]: unknown });
+}
+
+export function jpiBackgroundStatusResponse(
+  request: { request_id: string },
+  tasks: Array<{ kind: "task" | "monitor"; id: string; status: string }>,
+) {
+  return {
+    schema: "jpi-background.response.v1",
+    request_id: request.request_id,
+    operation: "status",
+    ok: true,
+    result: { tasks },
+  };
+}
+
+export function jpiBackgroundTasksPayload(
+  tasks: Array<{ kind: "task" | "monitor"; id: string; status: string }>,
+) {
+  return { schema: "jpi-background.tasks.v1", tasks };
+}
+
+export function jpiBackgroundTerminalPayload(task: { kind: "task" | "monitor"; id: string; status: string }) {
+  return { schema: "jpi-background.terminal.v1", task };
+}
+
 export async function readRecord(path: string) {
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
 }

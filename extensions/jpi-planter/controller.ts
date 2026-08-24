@@ -1,4 +1,4 @@
-import { BackgroundTaskMonitor } from "./background.ts";
+import { BackgroundTaskMonitor, JpiBackgroundTaskMonitor } from "./background.ts";
 import { resolvePlanterLabel, type ExecCommand } from "./helpers.ts";
 import {
   ASK_USER_BLOCKED_CHANNEL,
@@ -41,6 +41,9 @@ export class PlanterController {
   private readonly labelAbort = new AbortController();
   private state?: PlanterSessionState;
   private background?: BackgroundTaskMonitor;
+  private jpiBackground?: JpiBackgroundTaskMonitor;
+  private legacyBackgroundTasks = new Map<string, RunningBackgroundTask>();
+  private jpiBackgroundTasks = new Map<string, RunningBackgroundTask>();
   private unsubscribers: Array<() => void> = [];
   private subagentTimers = new Map<string, unknown>();
   private labelRevision = 0;
@@ -101,9 +104,16 @@ export class PlanterController {
       this.dependencies.scheduler,
       this.dependencies.generation,
       this.dependencies.requestId,
-      (tasks) => this.setBackground(tasks),
+      (tasks) => this.mergeBackground("legacy", tasks),
     );
     this.background.start();
+
+    this.jpiBackground = new JpiBackgroundTaskMonitor(
+      this.dependencies.events,
+      this.dependencies.requestId,
+      (tasks) => this.mergeBackground("jpi-background", tasks),
+    );
+    this.jpiBackground.start();
   }
 
   setMain(active: boolean): Promise<void> {
@@ -129,6 +139,8 @@ export class PlanterController {
     this.unsubscribers = [];
     this.background?.dispose();
     this.background = undefined;
+    this.jpiBackground?.dispose();
+    this.jpiBackground = undefined;
     for (const timer of this.subagentTimers.values()) {
       this.dependencies.scheduler.clearTimeout(timer);
     }
@@ -176,6 +188,16 @@ export class PlanterController {
     if (timer !== undefined) this.dependencies.scheduler.clearTimeout(timer);
     this.subagentTimers.delete(id);
     this.update(this.state.finishSubagent(id));
+  }
+
+  private mergeBackground(
+    provider: "legacy" | "jpi-background",
+    tasks: Map<string, RunningBackgroundTask>,
+  ): void {
+    if (provider === "legacy") this.legacyBackgroundTasks = tasks;
+    else this.jpiBackgroundTasks = tasks;
+    // jpi-background ids are namespaced (see JPI_BACKGROUND_ID_PREFIX), so this union can't collide.
+    this.setBackground(new Map([...this.legacyBackgroundTasks, ...this.jpiBackgroundTasks]));
   }
 
   private setBackground(tasks: Map<string, RunningBackgroundTask>): void {

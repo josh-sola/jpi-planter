@@ -5,8 +5,16 @@ import {
   BACKGROUND_RESPONSE_CHANNEL,
   BACKGROUND_RESPONSE_TIMEOUT_MS,
   BACKGROUND_TERMINAL_CHANNEL,
+  JPI_BACKGROUND_REQUEST_CHANNEL,
+  JPI_BACKGROUND_REQUEST_SCHEMA,
+  JPI_BACKGROUND_RESPONSE_CHANNEL,
+  JPI_BACKGROUND_TASKS_CHANNEL,
+  JPI_BACKGROUND_TERMINAL_CHANNEL,
   MAX_PENDING_BACKGROUND_REQUESTS,
   isBackgroundTerminal,
+  jpiBackgroundRunningTasks,
+  jpiBackgroundTasksLevel,
+  jpiBackgroundTerminalId,
   runningBackgroundTasks,
   type EventBus,
   type RunningBackgroundTask,
@@ -112,5 +120,93 @@ export class BackgroundTaskMonitor {
       }
       return;
     }
+  }
+}
+
+/**
+ * jpi-background broadcasts membership on every change instead of only on
+ * completion, so this consumer stays push-only: no polling, just the
+ * replace-set tasks:v1 channel plus one initial status request for tasks
+ * already running when the session starts.
+ */
+export class JpiBackgroundTaskMonitor {
+  private running = new Map<string, RunningBackgroundTask>();
+  private unsubscribers: Array<() => void> = [];
+  private requestId: string | undefined;
+  private receivedLevel = false;
+  private disposed = false;
+  private readonly events: EventBus;
+  private readonly createRequestId: () => string;
+  private readonly apply: (tasks: Map<string, RunningBackgroundTask>) => void;
+
+  constructor(
+    events: EventBus,
+    createRequestId: () => string,
+    apply: (tasks: Map<string, RunningBackgroundTask>) => void,
+  ) {
+    this.events = events;
+    this.createRequestId = createRequestId;
+    this.apply = apply;
+  }
+
+  start(): void {
+    if (this.disposed) return;
+    this.unsubscribers = [
+      this.events.on(JPI_BACKGROUND_RESPONSE_CHANNEL, (data) => this.applyStatusResponse(data)),
+      this.events.on(JPI_BACKGROUND_TASKS_CHANNEL, (data) => this.replace(data)),
+      this.events.on(JPI_BACKGROUND_TERMINAL_CHANNEL, (data) => this.terminal(data)),
+    ];
+    this.requestInitialStatus();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const unsubscribe of this.unsubscribers) {
+      try { unsubscribe(); } catch {}
+    }
+    this.unsubscribers = [];
+    this.requestId = undefined;
+  }
+
+  private requestInitialStatus(): void {
+    const requestId = this.createRequestId();
+    this.requestId = requestId;
+    try {
+      this.events.emit(JPI_BACKGROUND_REQUEST_CHANNEL, {
+        schema: JPI_BACKGROUND_REQUEST_SCHEMA,
+        request_id: requestId,
+        operation: "status",
+        params: {},
+      });
+    } catch {
+      this.requestId = undefined;
+    }
+  }
+
+  private applyStatusResponse(data: unknown): void {
+    // A tasks:v1 broadcast is authoritative and can arrive before this
+    // response; once it has, the stale initial snapshot must not overwrite it.
+    if (this.requestId === undefined || this.receivedLevel) return;
+    const tasks = jpiBackgroundRunningTasks(data, this.requestId);
+    if (tasks === undefined) return;
+    this.requestId = undefined;
+    this.running = tasks;
+    this.apply(new Map(this.running));
+  }
+
+  private replace(data: unknown): void {
+    const tasks = jpiBackgroundTasksLevel(data);
+    if (tasks === undefined) return;
+    this.receivedLevel = true;
+    this.running = tasks;
+    this.apply(new Map(this.running));
+  }
+
+  private terminal(data: unknown): void {
+    const id = jpiBackgroundTerminalId(data);
+    // Map.delete() is a no-op for an id already removed, which dedupes a repeated terminal broadcast.
+    if (id === undefined || !this.running.delete(id)) return;
+    this.apply(new Map(this.running));
   }
 }

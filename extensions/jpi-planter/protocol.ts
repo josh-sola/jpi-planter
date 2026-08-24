@@ -14,6 +14,17 @@ export const BACKGROUND_RESPONSE_TIMEOUT_MS = 3_000;
 export const MAX_PENDING_BACKGROUND_REQUESTS = 4;
 export const SUBAGENT_STALE_MS = 30 * 60 * 1_000;
 
+export const JPI_BACKGROUND_REQUEST_CHANNEL = "jpi-background:request:v1";
+export const JPI_BACKGROUND_RESPONSE_CHANNEL = "jpi-background:response:v1";
+export const JPI_BACKGROUND_TERMINAL_CHANNEL = "jpi-background:terminal:v1";
+export const JPI_BACKGROUND_TASKS_CHANNEL = "jpi-background:tasks:v1";
+export const JPI_BACKGROUND_REQUEST_SCHEMA = "jpi-background.request.v1";
+export const JPI_BACKGROUND_RESPONSE_SCHEMA = "jpi-background.response.v1";
+export const JPI_BACKGROUND_TERMINAL_SCHEMA = "jpi-background.terminal.v1";
+export const JPI_BACKGROUND_TASKS_SCHEMA = "jpi-background.tasks.v1";
+/** Keeps jpi-background ids out of the pi-background-tasks id space wherever the two providers' running sets are merged. */
+export const JPI_BACKGROUND_ID_PREFIX = "jpi-background:";
+
 export type EventBus = {
   emit(channel: string, data: unknown): void;
   on(channel: string, handler: (data: unknown) => void): () => void;
@@ -90,4 +101,65 @@ export function isBackgroundTerminal(data: unknown): boolean {
   if (!isRecord(data) || data.schema_version !== BACKGROUND_TERMINAL_SCHEMA) return false;
   const task = parseBackgroundTask(data.task);
   return task !== undefined && task.status !== "running";
+}
+
+const JPI_BACKGROUND_TASK_STATUSES = new Set(["running", "completed", "failed", "killed"]);
+const JPI_BACKGROUND_MONITOR_STATUSES = new Set(["running", "exited", "timeout", "cancelled", "failed"]);
+
+function parseJpiBackgroundSnapshot(data: unknown): { id: string; running: boolean } | undefined {
+  if (!isRecord(data)) return undefined;
+  const { kind, id, status } = data;
+  if (typeof id !== "string" || id.length === 0 || typeof status !== "string") return undefined;
+  if (kind === "task" && JPI_BACKGROUND_TASK_STATUSES.has(status)) return { id, running: status === "running" };
+  if (kind === "monitor" && JPI_BACKGROUND_MONITOR_STATUSES.has(status)) return { id, running: status === "running" };
+  return undefined;
+}
+
+function jpiBackgroundNamespacedId(id: string): string {
+  return `${JPI_BACKGROUND_ID_PREFIX}${id}`;
+}
+
+// A monitor snapshot maps onto the same RunningBackgroundTask shape as a task
+// snapshot: jpi-background has no isAgent concept, so it is always false here.
+function jpiBackgroundActiveSet(snapshots: unknown[]): Map<string, RunningBackgroundTask> | undefined {
+  const parsed = snapshots.map(parseJpiBackgroundSnapshot);
+  if (parsed.some((task) => task === undefined)) return undefined;
+
+  const active = new Map<string, RunningBackgroundTask>();
+  for (const task of parsed as Array<{ id: string; running: boolean }>) {
+    if (!task.running) continue;
+    const id = jpiBackgroundNamespacedId(task.id);
+    active.set(id, { id, isAgent: false });
+  }
+  return active;
+}
+
+export function jpiBackgroundRunningTasks(
+  data: unknown,
+  requestId: string,
+): Map<string, RunningBackgroundTask> | undefined {
+  if (
+    !isRecord(data)
+    || data.schema !== JPI_BACKGROUND_RESPONSE_SCHEMA
+    || data.request_id !== requestId
+    || data.operation !== "status"
+    || data.ok !== true
+    || !isRecord(data.result)
+    || !Array.isArray(data.result.tasks)
+  ) return undefined;
+
+  return jpiBackgroundActiveSet(data.result.tasks);
+}
+
+export function jpiBackgroundTasksLevel(data: unknown): Map<string, RunningBackgroundTask> | undefined {
+  if (!isRecord(data) || data.schema !== JPI_BACKGROUND_TASKS_SCHEMA || !Array.isArray(data.tasks)) {
+    return undefined;
+  }
+  return jpiBackgroundActiveSet(data.tasks);
+}
+
+export function jpiBackgroundTerminalId(data: unknown): string | undefined {
+  if (!isRecord(data) || data.schema !== JPI_BACKGROUND_TERMINAL_SCHEMA) return undefined;
+  const task = parseJpiBackgroundSnapshot(data.task);
+  return task && !task.running ? jpiBackgroundNamespacedId(task.id) : undefined;
 }
