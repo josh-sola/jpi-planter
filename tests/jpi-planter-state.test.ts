@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
-import { PlanterSessionState, planterColor, positiveIntegerText } from "../extensions/jpi-planter/state.ts";
+import {
+  PlanterSessionState,
+  planterColor,
+  positiveIntegerText,
+} from "../extensions/jpi-planter/state.ts";
 import {
   planterRecordPath,
   planterStateDirectory,
@@ -17,18 +21,36 @@ async function temporaryDirectory() {
 }
 
 test("state paths and environment values use Planter's exact validation", () => {
-  assert.equal(planterStateDirectory({
-    PLANTER_STATE_DIR: "/new",
-    CLAUDE_PLANTER_DIR: "/legacy",
-  }, "/home/me"), "/new");
-  assert.equal(planterStateDirectory({
-    PLANTER_STATE_DIR: "",
-    CLAUDE_PLANTER_DIR: "/legacy",
-  }, "/home/me"), "/legacy");
-  assert.equal(planterStateDirectory({
-    PLANTER_STATE_DIR: "",
-    CLAUDE_PLANTER_DIR: "",
-  }, "/home/me"), "/home/me/.claude/planter");
+  assert.equal(
+    planterStateDirectory(
+      {
+        PLANTER_STATE_DIR: "/new",
+        CLAUDE_PLANTER_DIR: "/legacy",
+      },
+      "/home/me",
+    ),
+    "/new",
+  );
+  assert.equal(
+    planterStateDirectory(
+      {
+        PLANTER_STATE_DIR: "",
+        CLAUDE_PLANTER_DIR: "/legacy",
+      },
+      "/home/me",
+    ),
+    "/legacy",
+  );
+  assert.equal(
+    planterStateDirectory(
+      {
+        PLANTER_STATE_DIR: "",
+        CLAUDE_PLANTER_DIR: "",
+      },
+      "/home/me",
+    ),
+    "/home/me/.claude/planter",
+  );
   assert.equal(safeSessionId("saved/id:名"), "saved_id__");
   assert.equal(planterRecordPath("/state", "saved/id:名", 42), "/state/pi-saved_id__-42.json");
   assert.equal(positiveIntegerText("1"), 1);
@@ -41,7 +63,7 @@ test("state paths and environment values use Planter's exact validation", () => 
 
 test("the initial state file has the provider-neutral Pi identity and record", async (t) => {
   const directory = await temporaryDirectory();
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => rm(directory, { recursive: true, force: true }));
   const harness = planterHarness(directory, {
     environment: { PLANTER_COLOR: "blue", PLANTER_TAB_INDEX: "3" },
   });
@@ -118,8 +140,12 @@ test("working, waiting, and attention keep the correct waiting clock", () => {
 test("subagents and background tasks use union and bud-set semantics", () => {
   let now = 100;
   const state = new PlanterSessionState({
-    sessionId: "session", pid: 9, cwd: "/repo", label: "repo",
-    environment: {}, now: () => now,
+    sessionId: "session",
+    pid: 9,
+    cwd: "/repo",
+    label: "repo",
+    environment: {},
+    now: () => now,
   });
   state.startSubagent("same");
   const first = state.record();
@@ -130,12 +156,18 @@ test("subagents and background tasks use union and bud-set semantics", () => {
   now = 110;
   assert.equal(state.startSubagent("same"), false);
   assert.equal(state.record().agents_at, 100);
-  state.setBackground(new Map([
-    ["same", { id: "same", isAgent: true }],
-    ["build", { id: "build", isAgent: false }],
-  ]));
+  state.setBackground(
+    new Map([
+      ["same", { id: "same", isAgent: true }],
+      ["build", { id: "build", isAgent: false }],
+    ]),
+  );
   assert.deepEqual(
-    { state: state.record().state, agents: state.record().agents, agentsAt: state.record().agents_at },
+    {
+      state: state.record().state,
+      agents: state.record().agents,
+      agentsAt: state.record().agents_at,
+    },
     { state: "working", agents: 2, agentsAt: 110 },
   );
   now = 120;

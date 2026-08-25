@@ -59,13 +59,20 @@ export function askUserBlocked(data: unknown): boolean | undefined {
   return data.active;
 }
 
-function parseBackgroundTask(data: unknown): { id: string; status: string; isAgent: boolean } | undefined {
+function parseBackgroundTask(
+  data: unknown,
+): { id: string; status: string; isAgent: boolean } | undefined {
   if (!isRecord(data)) return undefined;
   const { id, status, isAgent } = data;
   if (typeof id !== "string" || id.length === 0 || typeof isAgent !== "boolean") {
     return undefined;
   }
-  if (status !== "running" && status !== "completed" && status !== "failed" && status !== "killed") {
+  if (
+    status !== "running" &&
+    status !== "completed" &&
+    status !== "failed" &&
+    status !== "killed"
+  ) {
     return undefined;
   }
   return { id, status, isAgent };
@@ -76,14 +83,15 @@ export function runningBackgroundTasks(
   requestId: string,
 ): Map<string, RunningBackgroundTask> | undefined {
   if (
-    !isRecord(data)
-    || data.schema_version !== BACKGROUND_RESPONSE_SCHEMA
-    || data.request_id !== requestId
-    || data.operation !== "status"
-    || data.ok !== true
-    || !isRecord(data.result)
-    || !Array.isArray(data.result.tasks)
-  ) return undefined;
+    !isRecord(data) ||
+    data.schema_version !== BACKGROUND_RESPONSE_SCHEMA ||
+    data.request_id !== requestId ||
+    data.operation !== "status" ||
+    data.ok !== true ||
+    !isRecord(data.result) ||
+    !Array.isArray(data.result.tasks)
+  )
+    return undefined;
 
   const parsed = data.result.tasks.map(parseBackgroundTask);
   if (parsed.some((task) => task === undefined)) return undefined;
@@ -104,14 +112,22 @@ export function isBackgroundTerminal(data: unknown): boolean {
 }
 
 const JPI_BACKGROUND_TASK_STATUSES = new Set(["running", "completed", "failed", "killed"]);
-const JPI_BACKGROUND_MONITOR_STATUSES = new Set(["running", "exited", "timeout", "cancelled", "failed"]);
+const JPI_BACKGROUND_MONITOR_STATUSES = new Set([
+  "running",
+  "exited",
+  "timeout",
+  "cancelled",
+  "failed",
+]);
 
 function parseJpiBackgroundSnapshot(data: unknown): { id: string; running: boolean } | undefined {
   if (!isRecord(data)) return undefined;
   const { kind, id, status } = data;
   if (typeof id !== "string" || id.length === 0 || typeof status !== "string") return undefined;
-  if (kind === "task" && JPI_BACKGROUND_TASK_STATUSES.has(status)) return { id, running: status === "running" };
-  if (kind === "monitor" && JPI_BACKGROUND_MONITOR_STATUSES.has(status)) return { id, running: status === "running" };
+  if (kind === "task" && JPI_BACKGROUND_TASK_STATUSES.has(status))
+    return { id, running: status === "running" };
+  if (kind === "monitor" && JPI_BACKGROUND_MONITOR_STATUSES.has(status))
+    return { id, running: status === "running" };
   return undefined;
 }
 
@@ -121,7 +137,9 @@ function jpiBackgroundNamespacedId(id: string): string {
 
 // A monitor snapshot maps onto the same RunningBackgroundTask shape as a task
 // snapshot: jpi-background has no isAgent concept, so it is always false here.
-function jpiBackgroundActiveSet(snapshots: unknown[]): Map<string, RunningBackgroundTask> | undefined {
+function jpiBackgroundActiveSet(
+  snapshots: unknown[],
+): Map<string, RunningBackgroundTask> | undefined {
   const parsed = snapshots.map(parseJpiBackgroundSnapshot);
   if (parsed.some((task) => task === undefined)) return undefined;
 
@@ -139,20 +157,27 @@ export function jpiBackgroundRunningTasks(
   requestId: string,
 ): Map<string, RunningBackgroundTask> | undefined {
   if (
-    !isRecord(data)
-    || data.schema !== JPI_BACKGROUND_RESPONSE_SCHEMA
-    || data.request_id !== requestId
-    || data.operation !== "status"
-    || data.ok !== true
-    || !isRecord(data.result)
-    || !Array.isArray(data.result.tasks)
-  ) return undefined;
+    !isRecord(data) ||
+    data.schema !== JPI_BACKGROUND_RESPONSE_SCHEMA ||
+    data.request_id !== requestId ||
+    data.operation !== "status" ||
+    data.ok !== true ||
+    !isRecord(data.result) ||
+    !Array.isArray(data.result.tasks)
+  )
+    return undefined;
 
   return jpiBackgroundActiveSet(data.result.tasks);
 }
 
-export function jpiBackgroundTasksLevel(data: unknown): Map<string, RunningBackgroundTask> | undefined {
-  if (!isRecord(data) || data.schema !== JPI_BACKGROUND_TASKS_SCHEMA || !Array.isArray(data.tasks)) {
+export function jpiBackgroundTasksLevel(
+  data: unknown,
+): Map<string, RunningBackgroundTask> | undefined {
+  if (
+    !isRecord(data) ||
+    data.schema !== JPI_BACKGROUND_TASKS_SCHEMA ||
+    !Array.isArray(data.tasks)
+  ) {
     return undefined;
   }
   return jpiBackgroundActiveSet(data.tasks);

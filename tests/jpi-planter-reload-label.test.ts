@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 import jpiPlanter from "../extensions/jpi-planter/index.ts";
 import { LABEL_HOOK_TIMEOUT_MS, resolvePlanterLabel } from "../extensions/jpi-planter/helpers.ts";
@@ -19,7 +19,7 @@ async function replaceRecord(path: string, patch: Record<string, unknown>) {
 
 test("atomic writes adopt live tabs, reload preserves ordering, and final shutdown cleans up", async (t) => {
   const directory = await temporaryDirectory();
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => rm(directory, { recursive: true, force: true }));
   const harness = planterHarness(directory, {
     environment: {
       PLANTER_TAB_INDEX: "3",
@@ -69,7 +69,7 @@ test("atomic writes adopt live tabs, reload preserves ordering, and final shutdo
 
 test("labels follow environment, session name, direct hook, and cwd precedence", async (t) => {
   const directory = await temporaryDirectory();
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => rm(directory, { recursive: true, force: true }));
   const calls: Array<{ command: string; args: string[]; options: Record<string, unknown> }> = [];
   const harness = planterHarness(directory, {
     exec: async (command: string, args: string[], options: Record<string, unknown>) => {
@@ -98,28 +98,44 @@ test("labels follow environment, session name, direct hook, and cwd precedence",
   await harness.extension.onSessionShutdown({ reason: "quit" }, harness.context);
 
   let envHookCalls = 0;
-  assert.equal(await resolvePlanterLabel({
-    environment: { PLANTER_LABEL: " Env label\nignored" },
-    getSessionName: () => "Session name",
-    exec: async () => { envHookCalls += 1; throw new Error("must not run"); },
-    stateDirectory: directory,
-    cwd: "/repo/fallback",
-  }), "Env label");
+  assert.equal(
+    await resolvePlanterLabel({
+      environment: { PLANTER_LABEL: " Env label\nignored" },
+      getSessionName: () => "Session name",
+      exec: async () => {
+        envHookCalls += 1;
+        throw new Error("must not run");
+      },
+      stateDirectory: directory,
+      cwd: "/repo/fallback",
+    }),
+    "Env label",
+  );
   assert.equal(envHookCalls, 0);
-  assert.equal(await resolvePlanterLabel({
-    environment: {},
-    getSessionName: () => undefined,
-    exec: async () => { throw new Error("missing"); },
-    stateDirectory: directory,
-    cwd: "/repo/fallback",
-  }), "fallback");
-  assert.equal(await resolvePlanterLabel({
-    environment: { PLANTER_LABEL: "\n" },
-    getSessionName: () => "\t",
-    exec: async () => { throw new Error("missing"); },
-    stateDirectory: directory,
-    cwd: "/repo/fallback",
-  }), "fallback");
+  assert.equal(
+    await resolvePlanterLabel({
+      environment: {},
+      getSessionName: () => undefined,
+      exec: async () => {
+        throw new Error("missing");
+      },
+      stateDirectory: directory,
+      cwd: "/repo/fallback",
+    }),
+    "fallback",
+  );
+  assert.equal(
+    await resolvePlanterLabel({
+      environment: { PLANTER_LABEL: "\n" },
+      getSessionName: () => "\t",
+      exec: async () => {
+        throw new Error("missing");
+      },
+      stateDirectory: directory,
+      cwd: "/repo/fallback",
+    }),
+    "fallback",
+  );
 });
 
 test("the directory entry point registers settled lifecycle handling", () => {
@@ -131,12 +147,9 @@ test("the directory entry point registers settled lifecycle handling", () => {
     on: (name: string, handler: unknown) => handlers.set(name, handler),
   };
   jpiPlanter(pi as never);
-  assert.deepEqual([...handlers.keys()], [
-    "session_start",
-    "session_info_changed",
-    "agent_start",
-    "agent_settled",
-    "session_shutdown",
-  ]);
+  assert.deepEqual(
+    [...handlers.keys()],
+    ["session_start", "session_info_changed", "agent_start", "agent_settled", "session_shutdown"],
+  );
   assert.equal(handlers.has("agent_end"), false);
 });

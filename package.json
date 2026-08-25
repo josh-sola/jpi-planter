@@ -1,18 +1,28 @@
 {
   "name": "jpi-planter",
   "version": "0.1.0",
+  "keywords": [
+    "pi-package"
+  ],
   "type": "module",
-  "keywords": ["pi-package"],
   "scripts": {
-    "test": "node --test tests/*.test.ts"
+    "test": "vp test"
   },
   "dependencies": {
     "jpi-base": "github:josh-sola/jpi-base#semver:^0.1.0"
   },
+  "devDependencies": {
+    "vite-plus": "0.3.0"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.0"
+  },
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": [
+      "./extensions"
+    ]
   }
 }

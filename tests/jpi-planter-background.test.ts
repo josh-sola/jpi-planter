@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 import { BackgroundTaskMonitor } from "../extensions/jpi-planter/background.ts";
 import {
@@ -15,22 +15,30 @@ import {
 } from "./jpi-planter-test-helpers.ts";
 
 test("background responses validate and deduplicate running task ids", () => {
-  const parsed = runningBackgroundTasks({
-    schema_version: "pi-background-tasks.extension-response.v1",
-    request_id: "request",
-    operation: "status",
-    ok: true,
-    result: { tasks: [
-      { id: "agent", status: "running", isAgent: false },
-      { id: "agent", status: "running", isAgent: true },
-      { id: "job", status: "running", isAgent: false },
-      { id: "done", status: "completed", isAgent: true },
-    ] },
-  }, "request");
-  assert.deepEqual([...parsed!.values()], [
-    { id: "agent", isAgent: true },
-    { id: "job", isAgent: false },
-  ]);
+  const parsed = runningBackgroundTasks(
+    {
+      schema_version: "pi-background-tasks.extension-response.v1",
+      request_id: "request",
+      operation: "status",
+      ok: true,
+      result: {
+        tasks: [
+          { id: "agent", status: "running", isAgent: false },
+          { id: "agent", status: "running", isAgent: true },
+          { id: "job", status: "running", isAgent: false },
+          { id: "done", status: "completed", isAgent: true },
+        ],
+      },
+    },
+    "request",
+  );
+  assert.deepEqual(
+    [...parsed!.values()],
+    [
+      { id: "agent", isAgent: true },
+      { id: "job", isAgent: false },
+    ],
+  );
 
   for (const malformed of [
     null,
@@ -46,10 +54,13 @@ test("background responses validate and deduplicate running task ids", () => {
   ]) {
     assert.equal(runningBackgroundTasks(malformed, "request"), undefined);
   }
-  assert.equal(isBackgroundTerminal({
-    schema_version: "pi-background-tasks.extension-terminal.v1",
-    task: { id: "done", status: "completed", isAgent: false },
-  }), true);
+  assert.equal(
+    isBackgroundTerminal({
+      schema_version: "pi-background-tasks.extension-terminal.v1",
+      task: { id: "done", status: "completed", isAgent: false },
+    }),
+    true,
+  );
   assert.equal(isBackgroundTerminal({ task: { id: "done" } }), false);
 });
 
@@ -75,15 +86,20 @@ test("polling orders responses, bounds pending requests, and refreshes on termin
   const poll = scheduler.active("interval", 1_000)[0];
   scheduler.fire(poll);
   const requests = backgroundRequests(events);
-  events.emit("pi-background-tasks:response:v1", backgroundResponse(requests[1], [
-    { id: "agent", status: "running", isAgent: true },
-    { id: "job", status: "running", isAgent: false },
-  ]));
+  events.emit(
+    "pi-background-tasks:response:v1",
+    backgroundResponse(requests[1], [
+      { id: "agent", status: "running", isAgent: true },
+      { id: "job", status: "running", isAgent: false },
+    ]),
+  );
   events.emit("pi-background-tasks:response:v1", backgroundResponse(requests[0], []));
-  assert.deepEqual(applied, [[
-    { id: "agent", isAgent: true },
-    { id: "job", isAgent: false },
-  ]]);
+  assert.deepEqual(applied, [
+    [
+      { id: "agent", isAgent: true },
+      { id: "job", isAgent: false },
+    ],
+  ]);
 
   const beforeTerminal = backgroundRequests(events).length;
   events.emit("pi-background-tasks:terminal:v1", { task: { id: "bad" } });

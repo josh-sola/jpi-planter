@@ -23,9 +23,9 @@ export class PlanterScheduler {
     (timer as { cleared: boolean }).cleared = true;
   }
   active(kind: "interval" | "timeout", delay: number) {
-    return this.timers.filter((timer) => (
-      timer.kind === kind && timer.delay === delay && !timer.cleared
-    ));
+    return this.timers.filter(
+      (timer) => timer.kind === kind && timer.delay === delay && !timer.cleared,
+    );
   }
   fire(timer: { kind: string; callback: () => void; cleared: boolean }) {
     if (timer.cleared) return;
@@ -101,7 +101,11 @@ export function jpiBackgroundTasksPayload(
   return { schema: "jpi-background.tasks.v1", tasks };
 }
 
-export function jpiBackgroundTerminalPayload(task: { kind: "task" | "monitor"; id: string; status: string }) {
+export function jpiBackgroundTerminalPayload(task: {
+  kind: "task" | "monitor";
+  id: string;
+  status: string;
+}) {
   return { schema: "jpi-background.terminal.v1", task };
 }
 
@@ -114,13 +118,17 @@ export function planterHarness(directory: string, overrides: Record<string, unkn
   const events = new PlanterEventBus();
   const environment: Record<string, string | undefined> = {
     PLANTER_STATE_DIR: directory,
-    ...overrides.environment as Record<string, string | undefined> | undefined,
+    ...(overrides.environment as Record<string, string | undefined> | undefined),
   };
   let now = 100;
   let sessionName = overrides.sessionName as string | undefined;
   let temp = 0;
   const extension = createPlanterExtension({
-    exec: overrides.exec as never ?? (async () => { throw new Error("missing hook"); }),
+    exec:
+      (overrides.exec as never) ??
+      (async () => {
+        throw new Error("missing hook");
+      }),
     events,
     getSessionName: () => sessionName,
     scheduler,
@@ -137,8 +145,16 @@ export function planterHarness(directory: string, overrides: Record<string, unkn
     sessionManager: { getSessionId: () => "saved-session" },
   };
   return {
-    scheduler, events, environment, extension, context,
-    setNow(value: number) { now = value; },
-    setSessionName(value: string | undefined) { sessionName = value; },
+    scheduler,
+    events,
+    environment,
+    extension,
+    context,
+    setNow(value: number) {
+      now = value;
+    },
+    setSessionName(value: string | undefined) {
+      sessionName = value;
+    },
   };
 }

@@ -1,21 +1,44 @@
 import type { RunningBackgroundTask } from "./protocol.ts";
 
 export const PLANTER_COLORS = [
-  "red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+  "pink",
 ] as const;
 export type PlanterColor = (typeof PLANTER_COLORS)[number];
 export type PlantState = "working" | "waiting" | "attention";
 export type StateEnvironment = Record<string, string | undefined>;
 export type PlanterRecord = {
-  provider: "pi"; identity: string; session_id: string; cwd: string; label: string;
-  state: PlantState; agents: number; turn: 0 | 1; since: number; agents_at: number;
-  pid: number; created_at: number; updated_at: number; color: PlanterColor | null;
+  provider: "pi";
+  identity: string;
+  session_id: string;
+  cwd: string;
+  label: string;
+  state: PlantState;
+  agents: number;
+  turn: 0 | 1;
+  since: number;
+  agents_at: number;
+  pid: number;
+  created_at: number;
+  updated_at: number;
+  color: PlanterColor | null;
   tab: number | null;
 };
 
 type StateOptions = {
-  sessionId: string; pid: number; cwd: string; label: string;
-  environment: StateEnvironment; now: () => number; existing?: Record<string, unknown>;
+  sessionId: string;
+  pid: number;
+  cwd: string;
+  label: string;
+  environment: StateEnvironment;
+  now: () => number;
+  existing?: Record<string, unknown>;
 };
 
 export function positiveInteger(value: unknown): number | undefined {
@@ -28,16 +51,24 @@ export function positiveIntegerText(value: unknown): number | undefined {
 }
 export function planterColor(value: unknown): PlanterColor | null {
   return typeof value === "string" && (PLANTER_COLORS as readonly string[]).includes(value)
-    ? value as PlanterColor : null;
+    ? (value as PlanterColor)
+    : null;
 }
 function timestamp(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 function owned(value: Record<string, unknown> | undefined, sid: string, pid: number) {
-  return value?.provider === "pi" && value.identity === `pi:${sid}:${pid}`
-    && value.session_id === sid && value.pid === pid ? value : undefined;
+  return value?.provider === "pi" &&
+    value.identity === `pi:${sid}:${pid}` &&
+    value.session_id === sid &&
+    value.pid === pid
+    ? value
+    : undefined;
 }
-function sameBackground(a: Map<string, RunningBackgroundTask>, b: Map<string, RunningBackgroundTask>) {
+function sameBackground(
+  a: Map<string, RunningBackgroundTask>,
+  b: Map<string, RunningBackgroundTask>,
+) {
   if (a.size !== b.size) return false;
   for (const [id, task] of a) if (b.get(id)?.isAgent !== task.isAgent) return false;
   return true;
@@ -61,11 +92,13 @@ export class PlanterSessionState {
     const prior = owned(options.existing, options.sessionId, options.pid);
     this.createdAt = timestamp(prior?.created_at) ?? now;
     const priorSince = timestamp(prior?.since);
-    this.since = (prior?.state === "waiting" || prior?.state === "attention")
-      && priorSince !== undefined && priorSince > 0 ? priorSince : now;
-    this.agentsAt = !prior ? 0
-      : prior.agents === 0 ? (timestamp(prior.agents_at) ?? 0)
-      : now;
+    this.since =
+      (prior?.state === "waiting" || prior?.state === "attention") &&
+      priorSince !== undefined &&
+      priorSince > 0
+        ? priorSince
+        : now;
+    this.agentsAt = !prior ? 0 : prior.agents === 0 ? (timestamp(prior.agents_at) ?? 0) : now;
     this.tab = positiveIntegerText(options.environment.PLANTER_TAB_INDEX) ?? null;
   }
 
@@ -134,9 +167,11 @@ export class PlanterSessionState {
     const before = this.visibleValues();
     const now = this.options.now();
     if (previousBuds && !this.sameBudKeys(previousBuds)) this.agentsAt = now;
-    const next: PlantState = this.attention ? "attention"
-      : this.main || this.subagents.size > 0 || this.background.size > 0 ? "working"
-      : "waiting";
+    const next: PlantState = this.attention
+      ? "attention"
+      : this.main || this.subagents.size > 0 || this.background.size > 0
+        ? "working"
+        : "waiting";
     if (next === "working") this.since = 0;
     else if (this.state === "working" || this.since <= 0) this.since = now;
     this.state = next;

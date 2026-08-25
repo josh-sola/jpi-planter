@@ -72,19 +72,22 @@ export function createPlanterExtension(dependencies: PlanterDependencies): Plant
       active = undefined;
       await previous?.shutdown(previous.sessionId === sessionId);
 
-      const controller = new PlanterController({
-        exec: dependencies.exec,
-        events: dependencies.events,
-        getSessionName: dependencies.getSessionName,
-        scheduler,
-        requestId,
-        generation,
-        environment,
-        pid,
-        now,
-        stateDirectory: directory,
-        tempId: dependencies.tempId,
-      }, context);
+      const controller = new PlanterController(
+        {
+          exec: dependencies.exec,
+          events: dependencies.events,
+          getSessionName: dependencies.getSessionName,
+          scheduler,
+          requestId,
+          generation,
+          environment,
+          pid,
+          now,
+          stateDirectory: directory,
+          tempId: dependencies.tempId,
+        },
+        context,
+      );
       active = controller;
       await controller.start();
       if (active !== controller) await controller.shutdown(true);

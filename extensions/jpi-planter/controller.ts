@@ -64,10 +64,7 @@ export class PlanterController {
   }
 
   async start(): Promise<void> {
-    const [existing, label] = await Promise.all([
-      this.store.read(),
-      this.loadLabel(),
-    ]);
+    const [existing, label] = await Promise.all([this.store.read(), this.loadLabel()]);
     if (this.disposed) return;
     this.state = new PlanterSessionState({
       sessionId: this.sessionId,
@@ -96,7 +93,7 @@ export class PlanterController {
       }),
       this.dependencies.events.on(ASK_USER_BLOCKED_CHANNEL, (data) => {
         const active = askUserBlocked(data);
-        if (active !== undefined) this.update(this.state?.setAttention(active) === true);
+        if (active !== undefined) void this.update(this.state?.setAttention(active) === true);
       }),
     ];
     this.background = new BackgroundTaskMonitor(
@@ -134,7 +131,9 @@ export class PlanterController {
     this.labelRevision += 1;
     this.labelAbort.abort();
     for (const unsubscribe of this.unsubscribers) {
-      try { unsubscribe(); } catch {}
+      try {
+        unsubscribe();
+      } catch {}
     }
     this.unsubscribers = [];
     this.background?.dispose();
@@ -176,10 +175,10 @@ export class PlanterController {
     timer = this.dependencies.scheduler.setTimeout(() => {
       if (this.disposed || this.subagentTimers.get(id) !== timer) return;
       this.subagentTimers.delete(id);
-      this.update(this.state?.finishSubagent(id) === true);
+      void this.update(this.state?.finishSubagent(id) === true);
     }, SUBAGENT_STALE_MS);
     this.subagentTimers.set(id, timer);
-    this.update(this.state.startSubagent(id));
+    void this.update(this.state.startSubagent(id));
   }
 
   private finishSubagent(id: string): void {
@@ -187,7 +186,7 @@ export class PlanterController {
     const timer = this.subagentTimers.get(id);
     if (timer !== undefined) this.dependencies.scheduler.clearTimeout(timer);
     this.subagentTimers.delete(id);
-    this.update(this.state.finishSubagent(id));
+    void this.update(this.state.finishSubagent(id));
   }
 
   private mergeBackground(
@@ -202,7 +201,7 @@ export class PlanterController {
 
   private setBackground(tasks: Map<string, RunningBackgroundTask>): void {
     if (this.disposed || !this.state) return;
-    this.update(this.state.setBackground(tasks));
+    void this.update(this.state.setBackground(tasks));
   }
 
   private update(changed: boolean): Promise<void> {

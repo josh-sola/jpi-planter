@@ -59,17 +59,16 @@ export class BackgroundTaskMonitor {
       }),
     ];
     this.request();
-    this.pollTimer = this.scheduler.setInterval(
-      () => this.request(),
-      BACKGROUND_POLL_INTERVAL_MS,
-    );
+    this.pollTimer = this.scheduler.setInterval(() => this.request(), BACKGROUND_POLL_INTERVAL_MS);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     for (const unsubscribe of this.unsubscribers) {
-      try { unsubscribe(); } catch {}
+      try {
+        unsubscribe();
+      } catch {}
     }
     this.unsubscribers = [];
     if (this.pollTimer !== undefined) this.scheduler.clearInterval(this.pollTimer);
@@ -163,7 +162,9 @@ export class JpiBackgroundTaskMonitor {
     if (this.disposed) return;
     this.disposed = true;
     for (const unsubscribe of this.unsubscribers) {
-      try { unsubscribe(); } catch {}
+      try {
+        unsubscribe();
+      } catch {}
     }
     this.unsubscribers = [];
     this.requestId = undefined;

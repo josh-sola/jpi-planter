@@ -9,10 +9,16 @@ export function planterStateDirectory(
   environment: StateEnvironment = process.env,
   home = homedir(),
 ): string {
-  if (typeof environment.PLANTER_STATE_DIR === "string" && environment.PLANTER_STATE_DIR.length > 0) {
+  if (
+    typeof environment.PLANTER_STATE_DIR === "string" &&
+    environment.PLANTER_STATE_DIR.length > 0
+  ) {
     return environment.PLANTER_STATE_DIR;
   }
-  if (typeof environment.CLAUDE_PLANTER_DIR === "string" && environment.CLAUDE_PLANTER_DIR.length > 0) {
+  if (
+    typeof environment.CLAUDE_PLANTER_DIR === "string" &&
+    environment.CLAUDE_PLANTER_DIR.length > 0
+  ) {
     return environment.CLAUDE_PLANTER_DIR;
   }
   return join(home, ".claude", "planter");
@@ -30,7 +36,7 @@ async function readObject(path: string): Promise<Record<string, unknown> | undef
   try {
     const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
     return undefined;

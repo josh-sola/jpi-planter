@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vite-plus/test";
 
 import { SUBAGENT_STALE_MS } from "../extensions/jpi-planter/protocol.ts";
 import {
@@ -18,7 +18,7 @@ async function temporaryDirectory() {
 
 test("main, attention, subagent, and background activity use union precedence", async (t) => {
   const directory = await temporaryDirectory();
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => rm(directory, { recursive: true, force: true }));
   const harness = planterHarness(directory);
   await harness.extension.onSessionStart({}, harness.context);
   const path = harness.extension.recordPath()!;
@@ -28,10 +28,13 @@ test("main, attention, subagent, and background activity use union precedence", 
   harness.events.emit("subagents:started", { id: "sub" });
   harness.events.emit("subagents:started", { id: "sub" });
   const firstRequest = backgroundRequests(harness.events)[0];
-  harness.events.emit("pi-background-tasks:response:v1", backgroundResponse(firstRequest, [
-    { id: "agent", status: "running", isAgent: true },
-    { id: "build", status: "running", isAgent: false },
-  ]));
+  harness.events.emit(
+    "pi-background-tasks:response:v1",
+    backgroundResponse(firstRequest, [
+      { id: "agent", status: "running", isAgent: true },
+      { id: "build", status: "running", isAgent: false },
+    ]),
+  );
   await harness.extension.flush();
   assert.deepEqual(
     (({ state, agents, turn, since, agents_at }) => ({ state, agents, turn, since, agents_at }))(
@@ -104,15 +107,22 @@ test("main, attention, subagent, and background activity use union precedence", 
 
 test("non-TUI sessions do not read session identity or install behavior", async (t) => {
   const directory = await temporaryDirectory();
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.onTestFinished(() => rm(directory, { recursive: true, force: true }));
   let execCalls = 0;
   const harness = planterHarness(directory, {
-    exec: async () => { execCalls += 1; return { code: 0, stdout: "label" }; },
+    exec: async () => {
+      execCalls += 1;
+      return { code: 0, stdout: "label" };
+    },
   });
   const context = {
     ...harness.context,
     mode: "json",
-    sessionManager: { getSessionId: () => { throw new Error("must not run"); } },
+    sessionManager: {
+      getSessionId: () => {
+        throw new Error("must not run");
+      },
+    },
   };
   await harness.extension.onSessionStart({}, context);
   await harness.extension.onAgentStart({}, context);
